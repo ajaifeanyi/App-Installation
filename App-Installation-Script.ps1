@@ -1,6 +1,14 @@
-﻿# PLEASE ENTER THE GITHUB REPO HERE
+#PLEASE ENTER THE GITHUB REPO HERE
 $gethubRepoLink = "https://github.com/ajaifeanyi/Central-Dashboard.git"
 
+
+#START REFRESH PATH
+function refresh-path {
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") +
+                ";" +
+                [System.Environment]::GetEnvironmentVariable("Path","User")
+}
+#END REFRESH PATH
 
 
 #START INSTALLATION REGION
@@ -10,7 +18,7 @@ function Install-DotnetCore {
 [cmdletbinding()]
 param(
    [string]$Channel="LTS",
-   [string]$Version="3.1.101",
+   [string]$Version="3.1.426",
    [string]$JSonFile,
    [string]$InstallDir="<auto>",
    [string]$Architecture="<auto>",
@@ -410,19 +418,6 @@ function Get-List-Of-Directories-And-Versions-To-Unpack-From-Dotnet-Package([Sys
     return $ret
 }
 
-# Example zip content and extraction algorithm:
-# Rule: files if extracted are always being extracted to the same relative path locally
-# .\
-#       a.exe   # file does not exist locally, extract
-#       b.dll   # file exists locally, override only if $OverrideFiles set
-#       aaa\    # same rules as for files
-#           ...
-#       abc\1.0.0\  # directory contains version and exists locally
-#           ...     # do not extract content under versioned part
-#       abc\asd\    # same rules as for files
-#            ...
-#       def\ghi\1.0.1\  # directory contains version and does not exist locally
-#           ...         # extract content
 function Extract-Dotnet-Package([string]$ZipPath, [string]$OutPath) {
     Say-Invocation $MyInvocation
 
@@ -553,10 +548,9 @@ else {
 $isAssetInstalled = Is-Dotnet-Package-Installed -InstallRoot $InstallRoot -RelativePathToPackage $dotnetPackageRelativePath -SpecificVersion $SpecificVersion
 if ($isAssetInstalled) {
     Say "$assetName version $SpecificVersion is already installed."
-    Prepend-Sdk-InstallRoot-To-Path -InstallRoot $InstallRoot -BinFolderRelativePath $BinFolderRelativePath
-    #exit 0
-    break
-}
+    #Prepend-Sdk-InstallRoot-To-Path -InstallRoot $InstallRoot -BinFolderRelativePath $BinFolderRelativePath
+    
+}else{
 
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 
@@ -613,6 +607,7 @@ Remove-Item $ZipPath
 Prepend-Sdk-InstallRoot-To-Path -InstallRoot $InstallRoot -BinFolderRelativePath $BinFolderRelativePath
 
 Say "Dotnetcore3.1 Installation finished"
+}
 }
 
 
@@ -681,16 +676,18 @@ if (($PSVersionTable.PSVersion.Major -le 5) -or $IsWindows) {
 
     try {
         $ProgressPreference = 'SilentlyContinue'
-
+        
+        # "https://aka.ms/$($bitVersion)-user-$($BuildEdition)"!(Test-Path "$HOME\AppData\Local\Programs\Microsoft VS Code") -or 
         if (!(Test-Path $codeCmdPath)) {
             Write-Host "`nDownloading latest $appName..." -ForegroundColor Yellow
             Remove-Item -Force "$env:TEMP\vscode-$($BuildEdition).exe" -ErrorAction SilentlyContinue
-            Invoke-WebRequest -Uri "https://aka.ms/$($bitVersion)-user-$($BuildEdition)" -OutFile "$env:TEMP\vscode-$($BuildEdition).exe"
+            Invoke-WebRequest -Uri "https://code.visualstudio.com/sha/download?build=$($BuildEdition)&os=$($bitVersion)" -OutFile "$env:TEMP\vscode-$($BuildEdition).exe"
 
             Write-Host "`nInstalling $appName..." -ForegroundColor Yellow
             Start-Process -Wait "$env:TEMP\vscode-$($BuildEdition).exe" -ArgumentList /verysilent, /mergetasks=!runcode
             Write-Host "`n$appName... Installed" -ForegroundColor Green
-          
+
+            refresh-path
           }
         else {
             Write-Host "`n$appName is already installed." -ForegroundColor Yellow
@@ -698,18 +695,19 @@ if (($PSVersionTable.PSVersion.Major -le 5) -or $IsWindows) {
         }
 
       
-        $ErrorActionPreference = 'SilentlyContinue'
+      #$ErrorActionPreference = 'SilentlyContinue'
+      #code --install-extension "TeamsDevApp.ms-teams-vscode-extension"
 
         $extension = "TeamsDevApp.ms-teams-vscode-extension"
-
         $cmd = "code --list-extensions"
         Invoke-Expression $cmd -OutVariable output | Out-Null
         $installed = $output -split "\s"
 
-            if (!($installed.Contains($extension))) {
+            if (!($installed.Contains($extension)) -or $installed.Count -eq 0) {
 
-                code --install-extension $extension
-                #&$codeCmdPath --install-extension $extension
+                $ErrorActionPreference = 'SilentlyContinue'
+                #code --install-extension $extension
+                &$codeCmdPath --install-extension $extension
             }
 
       
@@ -801,16 +799,24 @@ catch [System.Management.Automation.CommandNotFoundException]
 }
 
 
-Install-Vscode
+#Install-Vscode
+
+ Install-Vscode
+
+    Install-DotnetCore
+
+    refresh-path
 
 #  Check if the SDK version is already installed.
-$sysRoot = $env:LOCALAPPDATA+"\Microsoft\dotnet\sdk\3.1.101"
+$sysRoot = "$env:LOCALAPPDATA\Microsoft\dotnet\sdk\3.1.101"
 $isDotnetInstalled = Test-Path -Path $sysRoot
 if (-not $isDotnetInstalled) {
 
     #Install-Vscode
 
     #Install-DotnetCore
+
+    #refresh-path
 }
 
 
@@ -865,7 +871,7 @@ if (-not $isDotnetInstalled) {
          catch [System.Management.Automation.CommandNotFoundException]
          {
                        WriteI -message "`n Installing teamsfx-cli...`n"
-		            #npm cache verify
+                    #npm cache verify
                     npm install -g @microsoft/teamsfx-cli@latest
 }
                 if (-not (Get-Module -ListAvailable -Name "Az.*")) {
@@ -899,6 +905,7 @@ $lastIndex = $length-$index
 $folderPath = $gethubRepoLink.Substring($index,$lastIndex)
 
 cd $HOME
+
 #####Cloning github repo into local system
 git clone $gethubRepoLink
 cd $HOME/$folderPath
@@ -929,7 +936,7 @@ try {
     #if($appEnv|where{$_ -match "prod"}){WriteI -message "prod env already exists.`n"}else{teamsfx env add prod --env dev}
 
     
-    WriteI -message "`n Resource provision is still in progress. Next check in 5 minutes...............`n"
+    WriteI -message "`n Resource provision is still in progress. Next check in 2 minutes...............`n"
     teamsfx provision --env prod
  
 }
@@ -943,7 +950,7 @@ catch [System.Management.Automation.CommandNotFoundException]
  #Trying to deploy solution 
  try
  {
-    WriteI -message "`n Resource deployment is still in progress. Next check in 3 minutes...................`n"
+    WriteI -message "`n Resource deployment is still in progress. Next check in 20 minutes...................`n"
     teamsfx deploy --env prod
      #WriteI -message "Solution Deployed`n"
  }
