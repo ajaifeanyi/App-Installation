@@ -555,6 +555,7 @@ if ($isAssetInstalled) {
     Say "$assetName version $SpecificVersion is already installed."
     Prepend-Sdk-InstallRoot-To-Path -InstallRoot $InstallRoot -BinFolderRelativePath $BinFolderRelativePath
     #exit 0
+    break
 }
 
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
@@ -616,6 +617,114 @@ Say "Dotnetcore3.1 Installation finished"
 
 
 #END INSTALLATION REGION
+
+#START VSCODE INSTALLATION REGION
+
+function Install-Vscode {
+
+[CmdletBinding()]
+param(
+    [parameter()]
+    [ValidateSet(,"64-bit","32-bit")]
+    [string]$Architecture = "64-bit",
+
+    [parameter()]
+    [ValidateSet("stable","insider")]
+    [string]$BuildEdition = "stable",
+
+    [Parameter()]
+    [ValidateNotNull()]
+    [string[]]$AdditionalExtensions = @(),
+
+    [switch]$LaunchWhenDone
+)
+
+if (($PSVersionTable.PSVersion.Major -le 5) -or $IsWindows) {
+    switch ($Architecture) {
+        "64-bit" {
+            if ((Get-CimInstance -ClassName Win32_OperatingSystem).OSArchitecture -eq "64-bit") {
+                $codePath = $env:ProgramFiles
+                $bitVersion = "win32-x64"
+            }
+            else {
+                $codePath = $env:ProgramFiles
+                $bitVersion = "win32"
+                $Architecture = "32-bit"
+            }
+            break;
+        }
+        "32-bit" {
+            if ((Get-CimInstance -ClassName Win32_OperatingSystem).OSArchitecture -eq "32-bit"){
+                $codePath = $env:ProgramFiles
+                $bitVersion = "win32"
+            }
+            else {
+                $codePath = ${env:ProgramFiles(x86)}
+                $bitVersion = "win32"
+            }
+            break;
+        }
+    }
+    switch ($BuildEdition) {
+        "Stable" {
+            $codeCmdPath = "$codePath\Microsoft VS Code\bin\code.cmd"
+            $appName = "Visual Studio Code ($($Architecture))"
+            break;
+        }
+        "Insider" {
+            $codeCmdPath = "$codePath\Microsoft VS Code Insiders\bin\code-insiders.cmd"
+            $appName = "Visual Studio Code - Insiders Edition ($($Architecture))"
+            break;
+        }
+    }
+
+
+    try {
+        $ProgressPreference = 'SilentlyContinue'
+
+        if (!(Test-Path $codeCmdPath)) {
+            Write-Host "`nDownloading latest $appName..." -ForegroundColor Yellow
+            Remove-Item -Force "$env:TEMP\vscode-$($BuildEdition).exe" -ErrorAction SilentlyContinue
+            Invoke-WebRequest -Uri "https://aka.ms/$($bitVersion)-user-$($BuildEdition)" -OutFile "$env:TEMP\vscode-$($BuildEdition).exe"
+
+            Write-Host "`nInstalling $appName..." -ForegroundColor Yellow
+            Start-Process -Wait "$env:TEMP\vscode-$($BuildEdition).exe" -ArgumentList /verysilent, /mergetasks=!runcode
+            Write-Host "`n$appName... Installed" -ForegroundColor Green
+          
+          }
+        else {
+            Write-Host "`n$appName is already installed." -ForegroundColor Yellow
+            #break;
+        }
+
+      
+        $ErrorActionPreference = 'SilentlyContinue'
+
+        $extension = "TeamsDevApp.ms-teams-vscode-extension"
+
+        $cmd = "code --list-extensions"
+        Invoke-Expression $cmd -OutVariable output | Out-Null
+        $installed = $output -split "\s"
+
+            if (!($installed.Contains($extension))) {
+
+                code --install-extension $extension
+                #&$codeCmdPath --install-extension $extension
+            }
+
+      
+    }
+    finally {
+        $ProgressPreference = 'Continue'
+    }
+}
+else {
+    Write-Error "This script is currently only supported on the Windows operating system."
+}
+
+}
+
+#END VSCODE INSTALLATION REGION
 
 # write information
 function WriteI{
@@ -692,13 +801,16 @@ catch [System.Management.Automation.CommandNotFoundException]
 }
 
 
+Install-Vscode
+
 #  Check if the SDK version is already installed.
 $sysRoot = $env:LOCALAPPDATA+"\Microsoft\dotnet\sdk\3.1.101"
 $isDotnetInstalled = Test-Path -Path $sysRoot
 if (-not $isDotnetInstalled) {
-    #WriteS -message "Dotnetcore sdk version 3.1 is already installed."
-    #WriteI -message "dotnetcore3.1 sdk installing`n"
-    Install-DotnetCore
+
+    #Install-Vscode
+
+    #Install-DotnetCore
 }
 
 
@@ -758,12 +870,12 @@ if (-not $isDotnetInstalled) {
 }
                 if (-not (Get-Module -ListAvailable -Name "Az.*")) {
                     WriteI -message "Installing AZ module...`n"
-                    Install-Module Az -AllowClobber -Scope CurrentUser
+                    #Install-Module Az -AllowClobber -Scope CurrentUser
                 }
 
                 if (-not (Get-Module -ListAvailable -Name "AzureAD")) {
                     WriteI -message "Installing AzureAD module...`n"
-                    Install-Module AzureAD -Scope CurrentUser
+                    #Install-Module AzureAD -Scope CurrentUser
                 }
                 
                  if (-not (Get-Module -ListAvailable -Name "WriteAscii")) {
@@ -811,10 +923,10 @@ try {
     WriteI -message "`n ...............`n"
     teamsfx account login azure
 
-    WriteI -message "Setting up teamfx and checking if prod env is available.`n"
+    #WriteI -message "Setting up teamfx and checking if prod env is available.`n"
 
-    $appEnv = teamsfx env list
-    if($appEnv|where{$_ -match "prod"}){WriteI -message "prod env already exists.`n"}else{teamsfx env add prod --env dev}
+    #$appEnv = teamsfx env list
+    #if($appEnv|where{$_ -match "prod"}){WriteI -message "prod env already exists.`n"}else{teamsfx env add prod --env dev}
 
     
     WriteI -message "`n Resource provision is still in progress. Next check in 5 minutes...............`n"
@@ -856,7 +968,7 @@ catch [System.Management.Automation.CommandNotFoundException]
     exit
  }
 
-WriteS -message "Done!!" $folderPath "successfully installed and published on Teams Admin Center, kindly sign in and approve the app before it become available for other users......."
+WriteS -message "Done!! Successfully installed and published on Teams Admin Center, kindly sign in and approve the app before it become available for other users......."
 Start-Sleep -Seconds 20
 Start-Process chrome.exe '-new-window https://admin.teams.microsoft.com/policies/manage-apps'
 
