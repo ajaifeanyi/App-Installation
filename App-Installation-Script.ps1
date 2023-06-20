@@ -1,5 +1,10 @@
 #PLEASE ENTER THE GITHUB REPO HERE
-$gethubRepoLink = "https://github.com/ajaifeanyi/Central-Dashboard.git"
+$gethubRepoLink = "https://github.com/RelianceBE-Code-Base/Employee-Lookup-365-v2.git"
+
+
+#$t = '[DllImport("user32.dll")] public static extern bool ShowWindow(int handle, int state);'
+#add-type -name win -member $t -namespace native
+#[native.win]::ShowWindow(([System.Diagnostics.Process]::GetCurrentProcess() | Get-Process).MainWindowHandle, 0)
 
 
 #START REFRESH PATH
